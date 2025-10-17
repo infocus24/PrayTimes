@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>লাইভ নামাজ ও ক্যালেন্ডার — InFocusNewsToday</title>
+<meta name="description" content="লাইভ নামাজের সময়, সেহরি, ইফতার — জেলা-ভিত্তিক (AlAdhan API)।" />
+<style>
+:root{
+  --bg:#0f172a; /* header background base */
+  --accent1:#ff6a00;
+  --accent2:#ff2d95;
+  --card-bg:#ffffff;
+  --muted:#6b7280;
+}
+html,body{margin:0;height:100%;font-family: 'Noto Sans Bengali', system-ui, Arial, sans-serif;background:#f3f4f6;color:#111;}
+/* HEADER */
+.header {
+  background: linear-gradient(135deg,#05060a, #0b1220 60%);
+  color:#fff;
+  padding:18px 14px 28px;
+  position:relative;
+  box-shadow:0 8px 30px rgba(2,6,23,0.6);
+}
+#districtSelect{
+  position:absolute; left:14px; top:14px;
+  padding:8px 10px; border-radius:10px; border:0; font-weight:700;
+  background:#fff; color:#0b1220;
+}
+.header-inner{max-width:1100px;margin:0 auto;text-align:center;}
+.brand{font-weight:900;font-size:20px;margin-bottom:8px;letter-spacing:0.6px;}
+.date-block{white-space:pre-line;line-height:1.6;font-weight:700;font-size:15px;margin:6px 0;}
+/* big time line */
+.time-line{
+  margin-top:10px;
+  font-weight:900;
+  font-size:28px;
+  letter-spacing:0.6px;
+  display:inline-block;
+  padding:10px 18px;
+  border-radius:10px;
+  background: linear-gradient(90deg, rgba(255,106,0,0.12), rgba(255,45,149,0.06));
+  color: #fff;
+  text-transform:uppercase;
+  box-shadow: 0 6px 30px rgba(255,45,149,0.08);
+  position:relative;
+}
+/* burning glow via text-shadow + pseudo */
+.time-line.glow{
+  animation: glow 2.2s ease-in-out infinite;
+  text-shadow:
+    0 0 8px rgba(255,106,0,0.25),
+    0 0 18px rgba(255,45,149,0.18),
+    0 0 30px rgba(255,45,149,0.12);
+}
+@keyframes glow{
+  0%{filter:brightness(1); transform:translateY(0);}
+  50%{filter:brightness(1.06) saturate(1.05); transform:translateY(-1px);}
+  100%{filter:brightness(1); transform:translateY(0);}
+}
+.small-note{font-size:12px;color:#cbd5e1;margin-top:6px}
+
+/* GRID LAYOUT FOR CARDS */
+.container{max-width:1100px;margin:18px auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.card{
+  background:var(--card-bg);border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(2,6,23,0.06);
+  text-align:center;
+}
+.card h3{margin:6px 0;color:var(--accent1);font-size:16px}
+.muted{color:var(--muted);font-size:14px}
+.countdown{font-weight:900;color:#d32f2f;margin-top:10px;font-size:15px}
+.prayer-line{font-size:16px;font-weight:800;margin-top:8px}
+@media(max-width:520px){
+  .time-line{font-size:22px;padding:8px 12px}
+  .brand{font-size:18px}
+}
+</style>
+</head>
+<body>
+
+<header class="header" role="banner">
+  <select id="districtSelect" aria-label="জেলা নির্বাচন">
+    <option value="dhaka" selected>ঢাকা</option>
+    <option value="chittagong">চট্টগ্রাম</option>
+    <option value="rajshahi">রাজশাহী</option>
+    <option value="khulna">খুলনা</option>
+    <option value="barishal">বরিশাল</option>
+    <option value="sylhet">সিলেট</option>
+    <option value="rangpur">রংপুর</option>
+    <option value="mymensingh">ময়মনসিংহ</option>
+    <option value="custom">Custom (lat,lng)</option>
+  </select>
+
+  <div class="header-inner" aria-live="polite">
+    <div class="brand">InfocusNewsToday24</div>
+
+    <!-- DATE block EXACT format: 5 lines (weekday+season, Gregorian, Hijri, Bangla) -->
+    <div id="dateBlock" class="date-block">লোড হচ্ছে...</div>
+
+    <!-- big time line (English AM/PM) -->
+    <div id="timeLine" class="time-line glow" aria-live="polite">00:00:00 AM</div>
+    <div class="small-note" id="timeLabel">লোড হচ্ছে...</div>
+  </div>
+</header>
+
+<main class="container" role="main" aria-live="polite">
+  <!-- prayer card -->
+  <div class="card" id="prayerCard">
+    <h3>🕌 নামাজের সময়সূচী</h3>
+    <div id="prayerLine1" class="prayer-line muted">লোড হচ্ছে...</div>
+    <div id="prayerLine2" class="muted"></div>
+    <div id="prayerLine3" class="countdown"></div>
+  </div>
+
+  <!-- forbidden times card -->
+  <div class="card" id="forbidCard">
+    <h3>🚫 নিষিদ্ধ নামাজের সময়</h3>
+    <div id="forbid1" class="muted">সূর্যোদয়: লোড...</div>
+    <div id="forbid2" class="muted">মধ্যাহ্ন: লোড...</div>
+    <div id="forbid3" class="muted">সূর্যাস্ত: লোড...</div>
+    <div id="forbidStatus" class="countdown"></div>
+  </div>
+
+  <!-- sehri -->
+  <div class="card" id="sehriCard">
+    <h3>🌙 সেহরির সময়সূচী</h3>
+    <div id="sehriLine" class="muted">লোড হচ্ছে...</div>
+    <div id="sehriCountdown" class="countdown"></div>
+  </div>
+
+  <!-- iftar -->
+  <div class="card" id="iftarCard">
+    <h3>🌅 ইফতারের সময়সূচী</h3>
+    <div id="iftarLine" class="muted">লোড হচ্ছে...</div>
+    <div id="iftarCountdown" class="countdown"></div>
+  </div>
+</main>
+
+<script>
+/* --------------------------
+  Helper utilities
+---------------------------*/
+const bnDigits = {'0':'০','1':'১','2':'২','3':'৩','4':'৪','5':'৫','6':'৬','7':'৭','8':'৮','9':'৯'};
+function toBn(s){ return String(s).split('').map(c=>bnDigits[c]||c).join(''); }
+
+// Hijri month transliteration map (English month names returned by API to Bengali)
+const hijriMonthMapBn = {
+  "Muharram":"মুহাররম","Safar":"সফর","Rabi al-Awwal":"রবিউল আউয়াল","Rabi al-Thani":"রবিউস সানি",
+  "Jumada al-Awwal":"জমাদিউল আউয়াল","Jumada al-Thani":"জমাদিউস সানি","Rajab":"রজব","Sha'ban":"শাবান",
+  "Ramadan":"রমজান","Shawwal":"শাওয়াল","Dhu al-Qadah":"জিলকদ","Dhu al-Hijjah":"জিলহজ্জ"
+};
+
+/* Districts (lat/lng) */
+const districts = {
+  dhaka:{lat:23.8103,lon:90.4125,label:"ঢাকা"},
+  chittagong:{lat:22.3569,lon:91.7832,label:"চট্টগ্রাম"},
+  rajshahi:{lat:24.3636,lon:88.6241,label:"রাজশাহী"},
+  khulna:{lat:22.8456,lon:89.5403,label:"খুলনা"},
+  barishal:{lat:22.7010,lon:90.3535,label:"বরিশাল"},
+  sylhet:{lat:24.8949,lon:91.8687,label:"সিলেট"},
+  rangpur:{lat:25.7439,lon:89.2752,label:"রংপুর"},
+  mymensingh:{lat:24.7471,lon:90.4203,label:"ময়মনসিংহ"},
+  custom:{lat:23.8103,lon:90.4125,label:"Custom"}
+};
+
+/* fetch timings from AlAdhan */
+async function fetchTimings(lat, lon){
+  // method=2 (ISNA) as default; you can change method parameter if you prefer another calc method
+  const url = `https://api.aladhan.com/v1/timings?latitude=${lat}&longitude=${lon}&method=2`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('API error');
+  const data = await res.json();
+  return data.data;
+}
+
+/* parse time string like "05:10" or "05:10 (BST)" -> returns Date obj local for today */
+function parseTimeToLocal(dateObj, timeStr){
+  // remove parentheses extras
+  const t = timeStr.split(' ')[0].trim();
+  const [hh,mm] = t.split(':').map(Number);
+  const d = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hh, mm, 0, 0);
+  return d;
+}
+
+/* countdown helper produce Bengali digits */
+function bnCountdown(target){
+  const now = new Date();
+  let diff = target - now;
+  if(diff < 0) diff += 24*3600*1000; // next day fallback
+  const h = Math.floor(diff/3600000);
+  const m = Math.floor((diff%3600000)/60000);
+  const s = Math.floor((diff%60000)/1000);
+  return `${toBn(String(h))} ঘন্টা ${toBn(String(m).padStart(2,'0'))} মিনিট ${toBn(String(s).padStart(2,'0'))} সেকেন্ড`;
+}
+
+/* get solar noon approx: average of sunrise & sunset */
+function getSolarNoon(sunriseDate, sunsetDate){
+  if(!sunriseDate || !sunsetDate) return null;
+  return new Date((sunriseDate.getTime() + sunsetDate.getTime())/2);
+}
+
+/* determine forbidden windows:
+   1) sunrise -> sunrise + 15min
+   2) solarNoon -5min -> +5min
+   3) asrStart -> sunset
+*/
+function buildForbiddenWindows(sunrise, solarNoon, asrStart, sunset){
+  const windows = [];
+  if(sunrise){
+    windows.push({start:new Date(sunrise), end:new Date(sunrise.getTime()+15*60000), desc:'সূর্যোদয় পরবর্তী (প্রায় ১৫ মিনিট)'});
+  }
+  if(solarNoon){
+    windows.push({start:new Date(solarNoon.getTime()-5*60000), end:new Date(solarNoon.getTime()+5*60000), desc:'মধ্যাহ্ন (Solar noon) ±5 মিনিট'});
+  }
+  if(asrStart && sunset){
+    windows.push({start:new Date(asrStart), end:new Date(sunset), desc:'আসর থেকে সূর্যাস্ত পর্যন্ত'});
+  }
+  return windows;
+}
+
+/* format AMPM for header (English) */
+function formatAMPM(date){
+  let h = date.getHours(), m=date.getMinutes(), s=date.getSeconds();
+  const ap = h>=12 ? 'PM' : 'AM';
+  let hh = h%12; if(hh===0) hh=12;
+  return `${String(hh).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ap}`;
+}
+
+/* time label (Bangla) */
+function getTimeLabel(date){
+  const h = date.getHours();
+  if(h>=4 && h<6) return 'এখন ভোর';
+  if(h>=6 && h<12) return 'এখন সকাল';
+  if(h>=12 && h<15) return 'এখন দুপুর';
+  if(h>=15 && h<18) return 'এখন বিকেল';
+  if(h>=18 && h<21) return 'এখন সন্ধ্যা';
+  return 'এখন গভীর রাত';
+}
+
+/* Compose header date lines EXACT format */
+function composeHeaderDate(data){ // data from AlAdhan API
+  const now = new Date();
+  // weekday bn + season
+  const weekdaysBn = ["রবিবার","সোমবার","মঙ্গলবার","বুধবার","বৃহস্পতিবার","শুক্রবার","শনিবার"];
+  const monthToSeason = ["শীতকাল","বসন্তকাল","বসন্তকাল","গ্রীষ্মকাল","গ্রীষ্মকাল","বর্ষাকাল","বর্ষাকাল","শরৎকাল","শরৎকাল","হেমন্তকাল","হেমন্তকাল","শীতকাল"];
+  const weekday = weekdaysBn[now.getDay()];
+  const season = monthToSeason[now.getMonth()];
+  // Gregorian line: 18-October-2025 [ খ্রিষ্টাব্দ ]
+  const gDay = String(now.getDate()).padStart(2,'0');
+  const gMonth = now.toLocaleString('en-GB',{month:'long'});
+  const gLine = `${gDay}-${gMonth}-${now.getFullYear()}`;
+  // Hijri from API (data.date.hijri)
+  let hijriLine = '';
+  try{
+    const h = data.date.hijri;
+    // map english month to bn via hijriMonthMapBn if possible
+    let mEn = h.month.en || '';
+    let mBn = hijriMonthMapBn[mEn] || (h.month.ar || h.month.en || '');
+    const dBn = toBn(String(h.day).padStart(2,'0'));
+    const yBn = toBn(String(h.year));
+    hijriLine = `${dBn}-${mBn}-${yBn}`;
+  }catch(e){
+    // fallback basic
+    const h = new Date();
+    hijriLine = `--`;
+  }
+  // Bangla date (approx)
+  function getBangla(d){
+    const year = d.getFullYear();
+    const start = new Date(year,3,14);
+    const base = d>=start ? year : year-1;
+    const starts = [new Date(base,3,14),new Date(base,4,15),new Date(base,5,15),new Date(base,6,16),new Date(base,7,16),new Date(base,8,16),new Date(base,9,17),new Date(base,10,16),new Date(base,11,16),new Date(base+1,0,15),new Date(base+1,1,13),new Date(base+1,2,15)];
+    let idx=11;
+    for(let i=0;i<starts.length;i++){
+      const s=starts[i], n=starts[i+1]||new Date(base+1,3,14);
+      if(d>=s && d<n){idx=i;break;}
+    }
+    const day = Math.floor((d - starts[idx])/(1000*60*60*24))+1;
+    const bYear = base - 593;
+    return {d:day,m:idx,y:bYear};
+  }
+  const b = getBangla(new Date());
+  const bDayBn = toBn(String(b.d).padStart(2,'0'));
+  const bLine = `${bDayBn}-${ ['বৈশাখ','জ্যৈষ্ঠ','আষাঢ়','শ্রাবণ','ভাদ্র','আশ্বিন','কার্তিক','অগ্রহায়ণ','পৌষ','মাঘ','ফাল্গুন','চৈত্র'][b.m] }-${toBn(String(b.y))}`;
+
+  const headerText = `আজ ${weekday} [ ${season} ]\n${gLine} [ খ্রিষ্টাব্দ ]\n${hijriLine} [ হিজরি ]\n${bLine} [ বঙ্গবন্ধ ]`;
+  // Note: user wanted "[ বঙ্গাব্দ ]" label - but to match earlier exact term use 'বঙ্গাব্দ'
+  const headerTextFinal = `আজ ${weekday} [ ${season} ]\n${gLine} [ খ্রিষ্টাব্দ ]\n${hijriLine} [ হিজরি ]\n${bDayBn}-${ ['বৈশাখ','জ্যৈষ্ঠ','আষাঢ়','শ্রাবণ','ভাদ্র','আশ্বিন','কার্তিক','অগ্রহায়ণ','পৌষ','মাঘ','ফাল্গুন','চৈত্র'][b.m] }-${toBn(String(b.y))} [ বঙ্গাব্দ ]`;
+  return {weekday,season,gLine,hijriLine,bLine: headerTextFinal};
+}
+
+/* -----------------------
+  MAIN: update UI with API data and countdowns
+-------------------------*/
+let latestTimings = null;
+
+async function updateAll(){
+  const sel = document.getElementById('districtSelect').value;
+  // if custom, prompt for coords (store in localStorage)
+  let lat = districts[sel].lat;
+  let lon = districts[sel].lon;
+  if(sel === 'custom'){
+    let coords = localStorage.getItem('infn_coords');
+    if(!coords){
+      coords = prompt('Enter coordinates as lat,lon  (e.g. 23.8103,90.4125)');
+      if(!coords){ coords = '23.8103,90.4125'; }
+      localStorage.setItem('infn_coords', coords);
+    }
+    [lat, lon] = coords.split(',').map(x=>parseFloat(x.trim()));
+  }
+
+  // Fetch AlAdhan timings
+  let data = null;
+  try{
+    data = await fetchTimings(lat, lon);
+    latestTimings = data;
+  }catch(e){
+    console.error(e);
+    // if previously cached timings exist, use them; else show error
+    if(!latestTimings){
+      document.getElementById('prayerLine1').textContent = 'API error — ইন্টারনেট পরীক্ষা করুন';
+      return;
+    } else {
+      data = latestTimings;
+    }
+  }
+
+  // Compose header date using API date payload
+  const header = composeHeaderDate(data);
+  document.getElementById('dateBlock').textContent = header.bLine? header.bLine : header.gLine;
+
+  // Big time (EN AM/PM) and label
+  const now = new Date();
+  document.getElementById('timeLine').textContent = formatAMPM(now);
+  document.getElementById('timeLabel').textContent = getTimeLabel(now);
+
+  /* Parse times from API - keys: Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha, Imsak */
+  const timings = data.timings; // e.g., "Fajr":"05:12 (BST)"
+  const today = new Date();
+  const parsed = {};
+  ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha','Imsak','Midnight'].forEach(k=>{
+    if(timings[k]){
+      parsed[k] = parseTimeToLocal(today, timings[k]);
+    } else parsed[k] = null;
+  });
+
+  // compute solar noon as average
+  const solarNoon = (parsed.Sunrise && parsed.Sunset) ? new Date((parsed.Sunrise.getTime()+parsed.Sunset.getTime())/2) : null;
+
+  // Build forbidden windows
+  const forbidden = buildForbiddenWindows(parsed.Sunrise, solarNoon, parsed.Asr, parsed.Maghrib);
+
+  // Determine current prayer by interval: if now >= start && now < next start
+  const order = ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
+  let currentPrayer = null, nextPrayer = null;
+  for(let i=0;i<order.length;i++){
+    const key = order[i];
+    const nextKey = order[i+1] || order[0];
+    const start = parsed[key];
+    // For 'Sunrise' we don't treat as prayer; skip as candidate for 'current prayer' but included in timing list.
+    if(!start) continue;
+    const startMin = start.getHours()*60 + start.getMinutes();
+    const nowMin = now.getHours()*60 + now.getMinutes();
+    let endMin;
+    // end is next prayer start (skip Sunrise if needed)
+    let j=i+1;
+    while(j<order.length && !parsed[order[j]]) j++;
+    if(j<order.length) endMin = parsed[order[j]].getHours()*60 + parsed[order[j]].getMinutes();
+    else endMin = 24*60;
+    // Use condition only for prayer slots (exclude Sunrise as 'prayer')
+    if(['Fajr','Dhuhr','Asr','Maghrib','Isha'].includes(key)){
+      if(nowMin >= startMin && nowMin < endMin){
+        currentPrayer = {key, name:key === 'Dhuhr' ? 'যোহর' : (key === 'Fajr' ? 'ফজর' : key === 'Asr' ? 'আসর' : key === 'Maghrib' ? 'মাগরিব' : key === 'Isha' ? 'ইশা' : key)};
+        // find next prayer (next key in array that is a prayer)
+        let ni = i+1;
+        while(ni<order.length && !['Fajr','Dhuhr','Asr','Maghrib','Isha'].includes(order[ni])) ni++;
+        if(ni<order.length) nextPrayer = {key:order[ni], name: order[ni]==='Dhuhr' ? 'যোহর' : (order[ni]==='Fajr' ? 'ফজর' : order[ni]==='Asr' ? 'আসর' : order[ni]==='Maghrib' ? 'মাগরিব' : 'ইশা')};
+        else nextPrayer = {key:'Fajr', name:'ফজর'}; // next day's fajr
+        break;
+      }
+    }
+  }
+
+  // Update prayer card exactly as requested
+  const p1 = document.getElementById('prayerLine1');
+  const p2 = document.getElementById('prayerLine2');
+  const p3 = document.getElementById('prayerLine3');
+
+  if(currentPrayer){
+    p1.textContent = `এখন নামাজের ওয়াক্ত "${currentPrayer.name}" চলমান`;
+    p2.textContent = `পরবর্তী নামাজের ওয়াক্ত আসবে "${nextPrayer.name}"`;
+    // countdown to nextPrayer start
+    let nextTime;
+    if(nextPrayer.key === 'Fajr' && parsed.Fajr && (parsed.Fajr <= now)) {
+      // next day fajr
+      nextTime = new Date(parsed.Fajr.getTime() + 24*3600*1000);
+    } else {
+      nextTime = parsed[nextPrayer.key] || parsed.Fajr;
+      if(!nextTime) nextTime = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 5, 0, 0);
+    }
+    p3.textContent = `পরবর্তী নামাজ ওয়াক্তের সময় আসতে বাকি :- ${bnCountdown(nextTime)}`;
+  } else {
+    p1.textContent = `এখন আর কোন নামাজের ওয়াক্ত নেই।`;
+    p2.textContent = `পরবর্তী নামাজের ওয়াক্ত খুব শীঘ্রই চলে আসবে।`;
+    // next is fajr of next day
+    let nextTime = parsed.Fajr ? new Date(parsed.Fajr.getTime()) : new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 5, 0, 0);
+    if(nextTime <= now) nextTime = new Date(nextTime.getTime() + 24*3600*1000);
+    p3.textContent = `পরবর্তী ওয়াক্ত আসতে সময় বাকি :- ${bnCountdown(nextTime)}`;
+  }
+
+  // Forbidden card lines
+  document.getElementById('forbid1').textContent = parsed.Sunrise ? `সূর্যোদয়: ${formatAMPM(parsed.Sunrise)}` : 'সূর্যোদয়: ---';
+  document.getElementById('forbid2').textContent = solarNoon ? `মধ্যাহ্ন (approx): ${formatAMPM(solarNoon)}` : 'মধ্যাহ্ন: ---';
+  document.getElementById('forbid3').textContent = parsed.Maghrib ? `সূর্যাস্ত (মাগরিব): ${formatAMPM(parsed.Maghrib)}` : 'সূর্যাস্ত: ---';
+
+  // forbidden status: active or next
+  const nowT = now.getTime();
+  let activeWindow = null, nextWindow = null;
+  forbidden.forEach(w=>{
+    if(w.start && w.end){
+      if(nowT >= w.start.getTime() && nowT <= w.end.getTime()) activeWindow = w;
+      else if(nowT < w.start.getTime()){
+        if(!nextWindow || w.start.getTime() < nextWindow.start.getTime()) nextWindow = w;
+      }
+    }
+  });
+  const forbidStatus = document.getElementById('forbidStatus');
+  if(activeWindow){
+    forbidStatus.textContent = `এখন "${activeWindow.desc}" — নামাজ পড়া নিষেধ (শেষ হতে বাকি: ${bnCountdown(activeWindow.end)})`;
+  } else if(nextWindow){
+    forbidStatus.textContent = `পরবর্তী নিষিদ্ধ সময়: "${nextWindow.desc}" — শুরুতে বাকি: ${bnCountdown(nextWindow.start)}`;
+  } else {
+    forbidStatus.textContent = `বর্তমানে নিষিদ্ধ সময় নেই।`;
+  }
+
+  // Sehri (Imsak) - use Imsak if provided, else use Fajr - 10 minutes
+  const imsak = parsed.Imsak || (parsed.Fajr ? new Date(parsed.Fajr.getTime() - 10*60000) : null);
+  if(imsak){
+    const imsakLine = `আজ সেহরি শেষ হবে ভোর: ${formatAMPM(imsak)}`;
+    document.getElementById('sehriLine').textContent = imsakLine;
+    document.getElementById('sehriCountdown').textContent = `সেহরির সময় শেষ হতে বাকি: ${bnCountdown(imsak)}`;
+  } else {
+    document.getElementById('sehriLine').textContent = 'সেহরি সময়: উপলব্ধ নয়';
+    document.getElementById('sehriCountdown').textContent = '';
+  }
+
+  // Iftar: Maghrib
+  if(parsed.Maghrib){
+    const magLine = `আজ ইফতার হবে সন্ধ্যা: ${formatAMPM(parsed.Maghrib)}`;
+    document.getElementById('iftarLine').textContent = magLine;
+    document.getElementById('iftarCountdown').textContent = `ইফতারের সময় আসতে বাকি: ${bnCountdown(parsed.Maghrib)}`;
+  } else {
+    document.getElementById('iftarLine').textContent = 'ইফতার: উপলব্ধ নয়';
+    document.getElementById('iftarCountdown').textContent = '';
+  }
+}
+
+/* periodic update */
+document.getElementById('districtSelect').addEventListener('change', ()=>{
+  if(document.getElementById('districtSelect').value !== 'custom'){
+    localStorage.removeItem('infn_coords');
+  }
+  // immediate refresh
+  updateAll();
+});
+setInterval(()=>{
+  // update clock display and everything
+  // updateAll fetches API each time — to be gentle, we fetch full API every 60s and update countdowns every 1s
+  const lastFetch = window.__lastFetchTime || 0;
+  const now = Date.now();
+  if(!window.__lastFetchedData || (now - lastFetch > 60000)){
+    updateAll();
+    window.__lastFetchTime = now;
+  } else {
+    // only update clocks/countdowns using existing latestTimings (fast)
+    // call updateAll to refresh UI from latestTimings but avoid refetch
+    (async()=>{
+      if(latestTimings){
+        // emulate updateAll behavior without network: build minimal data object
+        try{
+          // reuse latestTimings as data payload for composeHeaderDate etc.
+          const dummyData = {timings: latestTimings.timings, date: latestTimings.date};
+          // small helper: update header time only
+          const nowD = new Date();
+          document.getElementById('timeLine').textContent = formatAMPM(nowD);
+          document.getElementById('timeLabel').textContent = getTimeLabel(nowD);
+          // For full UI countdown refresh, call updateAll but skip fetch
+          // We'll call a trimmed routine: rebuild parsed times and update countdowns
+          // Reconstruct parsed map:
+          const timings = latestTimings.timings;
+          const today = new Date();
+          const parsed = {};
+          ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha','Imsak','Midnight'].forEach(k=>{
+            if(timings[k]) parsed[k] = parseTimeToLocal(today, timings[k]);
+            else parsed[k] = null;
+          });
+          const solarNoon = (parsed.Sunrise && parsed.Maghrib) ? new Date((parsed.Sunrise.getTime()+parsed.Maghrib.getTime())/2) : null;
+          // update prayer lines similarly to updateAll (find currentPrayer)
+          const order = ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
+          const nowMin = (new Date()).getHours()*60 + (new Date()).getMinutes();
+          let currentPrayer=null, nextPrayer=null;
+          for(let i=0;i<order.length;i++){
+            const key = order[i];
+            if(!parsed[key]) continue;
+            const st = parsed[key].getHours()*60 + parsed[key].getMinutes();
+            let en;
+            let j=i+1; while(j<order.length && !parsed[order[j]]) j++;
+            en = j<order.length ? parsed[order[j]].getHours()*60 + parsed[order[j]].getMinutes() : 24*60;
+            if(['Fajr','Dhuhr','Asr','Maghrib','Isha'].includes(key)){
+              if(nowMin >= st && nowMin < en){
+                currentPrayer = key;
+                // next prayer:
+                let ni = i+1; while(ni<order.length && !['Fajr','Dhuhr','Asr','Maghrib','Isha'].includes(order[ni])) ni++;
+                nextPrayer = ni<order.length ? order[ni] : 'Fajr';
+                break;
+              }
+            }
+          }
+          // update prayer card using latestTimings
+          const p1 = document.getElementById('prayerLine1');
+          const p2 = document.getElementById('prayerLine2');
+          const p3 = document.getElementById('prayerLine3');
+          if(currentPrayer){
+            const mapName = {'Fajr':'ফজর','Dhuhr':'যোহর','Asr':'আসর','Maghrib':'মাগরিব','Isha':'ইশা'};
+            p1.textContent = `এখন নামাজের ওয়াক্ত "${mapName[currentPrayer]||currentPrayer}" চলমান`;
+            p2.textContent = `পরবর্তী নামাজের ওয়াক্ত আসবে "${mapName[nextPrayer]||nextPrayer}"`;
+            // nextTime:
+            let nextTime = parsed[nextPrayer] || parsed.Fajr;
+            if(!nextTime) nextTime = new Date((new Date()).getTime()+3600000);
+            p3.textContent = `পরবর্তী নামাজ ওয়াক্তের সময় আসতে বাকি :- ${bnCountdown(nextTime)}`;
+          } else {
+            p1.textContent = `এখন আর কোন নামাজের ওয়াক্ত নেই।`;
+            p2.textContent = `পরবর্তী নামাজের ওয়াক্ত খুব শীঘ্রই চলে আসবে।`;
+            const nextTime = parsed.Fajr ? (parsed.Fajr.getTime() <= Date.now() ? new Date(parsed.Fajr.getTime()+24*3600000): parsed.Fajr) : new Date(Date.now()+3600000);
+            p3.textContent = `পরবর্তী ওয়াক্ত আসতে সময় বাকি :- ${bnCountdown(nextTime)}`;
+          }
+          // update other countdowns:
+          // Forbidden windows:
+          const forbidden = buildForbiddenWindows(parsed.Sunrise, solarNoon, parsed.Asr, parsed.Maghrib);
+          let active=null, nextWin=null;
+          const nowT = Date.now();
+          forbidden.forEach(w=>{
+            if(w.start && w.end){
+              if(nowT >= w.start.getTime() && nowT <= w.end.getTime()) active = w;
+              else if(nowT < w.start.getTime()){
+                if(!nextWin || w.start.getTime() < nextWin.start.getTime()) nextWin = w;
+              }
+            }
+          });
+          const forbidStatus = document.getElementById('forbidStatus');
+          if(active){
+            forbidStatus.textContent = `এখন "${active.desc}" — নামাজ পড়া নিষেধ (শেষ হতে বাকি: ${bnCountdown(active.end)})`;
+          } else if(nextWin){
+            forbidStatus.textContent = `পরবর্তী নিষিদ্ধ সময়: "${nextWin.desc}" — শুরুতে বাকি: ${bnCountdown(nextWin.start)}`;
+          } else {
+            forbidStatus.textContent = `বর্তমানে নিষিদ্ধ সময় নেই।`;
+          }
+          // sehri (Imsak)
+          const imsak = parsed.Imsak || (parsed.Fajr? new Date(parsed.Fajr.getTime()-10*60000): null);
+          if(imsak){
+            document.getElementById('sehriLine').textContent = `আজ সেহরি শেষ হবে ভোর: ${formatAMPM(imsak)}`;
+            document.getElementById('sehriCountdown').textContent = `সেহরির সময় শেষ হতে বাকি: ${bnCountdown(imsak)}`;
+          }
+          // iftar
+          if(parsed.Maghrib){
+            document.getElementById('iftarLine').textContent = `আজ ইফতার হবে সন্ধ্যা: ${formatAMPM(parsed.Maghrib)}`;
+            document.getElementById('iftarCountdown').textContent = `ইফতারের সময় আসতে বাকি: ${bnCountdown(parsed.Maghrib)}`;
+          }
+        }catch(e){
+          console.error('Update refresh error', e);
+        }
+      }
+    })();
+  }
+}, 1000);
+
+// initial fetch
+updateAll();
+
+</script>
+</body>
+</html>
