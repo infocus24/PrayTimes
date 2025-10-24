@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>লাইভ নামাজ ও সময়সূচী</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+<!-- Header -->
+<header class="bg-white shadow-md p-4 flex flex-col md:flex-row justify-between items-center">
+  <div class="text-center md:text-left mb-2 md:mb-0">
+    <div id="periodLabel" class="text-lg font-bold text-gray-700"></div>
+    <div id="liveClock" class="text-2xl md:text-3xl font-extrabold text-orange-500"></div>
+  </div>
+  <div class="text-center text-xl md:text-3xl font-extrabold text-gray-800 mb-2 md:mb-0">
+    InFocusNewsToday24
+  </div>
+  <div class="text-center md:text-right space-y-1">
+    <div id="weekdaySeason" class="font-semibold text-gray-700"></div>
+    <div id="gregorianDate" class="text-gray-600"></div>
+    <div id="hijriDate" class="text-gray-600"></div>
+    <div id="banglaDate" class="text-gray-600"></div>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="max-w-7xl mx-auto p-4 space-y-4 md:space-y-6">
+
+  <!-- Namaz Box -->
+  <section class="bg-gradient-to-r from-blue-400 to-indigo-500 text-white rounded-xl p-4 shadow-lg">
+    <div class="text-center font-bold text-xl mb-4">নামাজের সময়সূচী</div>
+
+    <div id="currentNamaz" class="text-lg font-bold text-center mt-2"></div>
+    <div id="nextNamaz" class="text-md mt-1 text-center"></div>
+    <div id="nextNamazCountdown" class="text-xl font-extrabold mt-1 text-yellow-200 text-center"></div>
+
+    <div class="flex justify-between text-white font-bold mt-4 px-2">
+      <div>সূর্যোদয়: <span id="sunriseTime"></span></div>
+      <div>সূর্যাস্ত: <span id="sunsetTime"></span></div>
+    </div>
+
+    <!-- District Dropdown -->
+    <div class="text-center mt-4 font-semibold text-lg">জেলা নির্বাচন</div>
+    <div class="text-center mt-2">
+      <select id="districtSelect" class="p-2 rounded text-black font-semibold w-2/3 md:w-1/3 mx-auto">
+        <option value="dhaka" selected>ঢাকা</option>
+        <option value="chittagong">চট্টগ্রাম</option>
+        <option value="khulna">খুলনা</option>
+        <option value="rajshahi">রাজশাহী</option>
+        <option value="barishal">বরিশাল</option>
+        <option value="sylhet">সিলেট</option>
+        <option value="rangpur">রংপুর</option>
+        <option value="mymensingh">ময়মনসিংহ</option>
+        <!-- অন্যান্য জেলা ৬৪টি যুক্ত করতে হবে -->
+      </select>
+    </div>
+  </section>
+
+  <!-- Iftar Box -->
+  <section class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-xl p-4 shadow-lg">
+    <div class="font-semibold text-lg mb-2 text-center">ইফতারের সময়সূচী</div>
+    <div id="iftarTime" class="text-lg font-bold text-center"></div>
+    <div id="iftarCountdown" class="text-xl font-extrabold mt-1 text-white text-center"></div>
+  </section>
+
+  <!-- Sehri Box -->
+  <section class="bg-gradient-to-r from-green-400 to-teal-500 text-white rounded-xl p-4 shadow-lg">
+    <div class="font-semibold text-lg mb-2 text-center">সেহরির সময়সূচী</div>
+    <div id="sehriStatus" class="text-lg font-bold text-center"></div>
+    <div id="sehriCountdown" class="text-xl font-extrabold mt-1 text-yellow-200 text-center"></div>
+  </section>
+
+</main>
+
+<script>
+function pad(n){return String(n).padStart(2,'0');}
+function toBengaliDigits(s){return String(s).split('').map(c=>{'0123456789'.includes(c)?c='০১২৩৪৫৬৭৮৯'[c]:c;return c;}).join('');}
+
+// District timings
+const districts = {
+   dhaka:{fajr:"05:00", zuhr:"12:20", asr:"15:30", maghrib:"18:05", isha:"19:30", sehri:"04:40", iftar:"18:05", sunrise:"06:10", sunset:"18:05"},
+  chittagong:{fajr:"04:50", zuhr:"12:15", asr:"15:25", maghrib:"17:55", isha:"19:25", sehri:"04:30", iftar:"17:55", sunrise:"06:05", sunset:"17:50"},
+  sylhet:{fajr:"04:55", zuhr:"12:18", asr:"15:28", maghrib:"18:00", isha:"19:28", sehri:"04:35", iftar:"18:00", sunrise:"06:08", sunset:"18:00"},
+  khulna:{fajr:"05:05", zuhr:"12:22", asr:"15:32", maghrib:"18:07", isha:"19:32", sehri:"04:42", iftar:"18:07", sunrise:"06:12", sunset:"18:07"},
+  rajshahi:{fajr:"05:03", zuhr:"12:21", asr:"15:31", maghrib:"18:06", isha:"19:31", sehri:"04:41", iftar:"18:06", sunrise:"06:11", sunset:"18:06"},
+  barishal:{fajr:"05:01", zuhr:"12:20", asr:"15:30", maghrib:"18:04", isha:"19:30", sehri:"04:39", iftar:"18:04", sunrise:"06:09", sunset:"18:04"},
+  rangpur:{fajr:"05:02", zuhr:"12:21", asr:"15:31", maghrib:"18:05", isha:"19:31", sehri:"04:40", iftar:"18:05", sunrise:"06:10", sunset:"18:05"},
+  mymensingh:{fajr:"05:00", zuhr:"12:20", asr:"15:30", maghrib:"18:05", isha:"19:30", sehri:"04:40", iftar:"18:05", sunrise:"06:10", sunset:"18:05"}
+};
+
+let currentDistrict="dhaka";
+
+function getCountdown(now,future){
+  let diff=Math.floor((future-now)/1000);
+  if(diff<0) return "";
+  let h=Math.floor(diff/3600), m=Math.floor((diff%3600)/60), s=diff%60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function getTimeParts(hhmm){ const [h,m]=hhmm.split(":").map(Number); return {h,m}; }
+
+function updateHeader(){
+  const now = new Date();
+  const weekday=["রবিবার","সোমবার","মঙ্গলবার","বুধবার","বৃহস্পতিবার","শুক্রবার","শনিবার"];
+  const seasons=["শীতকাল","বসন্তকাল","বসন্তকাল","গ্রীষ্মকাল","গ্রীষ্মকাল","বর্ষাকাল","বর্ষাকাল","শরৎকাল","শরৎকাল","হেমন্তকাল","হেমন্তকাল","শীতকাল"];
+  document.getElementById("weekdaySeason").innerText = `${weekday[now.getDay()]} [ ${seasons[now.getMonth()]} ]`;
+
+  const monthsEn=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("gregorianDate").innerText = `${now.getDate()}-${monthsEn[now.getMonth()]}-${now.getFullYear()} [ খ্রিষ্টাব্দ ]`;
+
+  const hijriMonthsBn=["মুহাররম","সফর","রবিউল আউয়াল","রবিউস সানি","জমাদিউল আউয়াল","জমাদিউস সানি","রজব","শাবান","রমজান","শাওয়াল","জিলকদ","জিলহজ্জ"];
+  const fmtEn=new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{day:'2-digit',month:'numeric',year:'numeric'});
+  const partsEn=fmtEn.formatToParts(now);
+  const hDay=partsEn.find(p=>p.type==='day')?.value;
+  const hMonth=partsEn.find(p=>p.type==='month')?.value-1;
+  const hYear=partsEn.find(p=>p.type==='year')?.value;
+  document.getElementById("hijriDate").innerText = `${pad(hDay)}-${hijriMonthsBn[hMonth]}-${hYear} [ হিজরি ]`;
+
+  const day=8; // উদাহরণ
+  document.getElementById("banglaDate").innerText = `${toBengaliDigits(day)}-কার্তিক-১৪৩২ [ বঙ্গাব্দ ]`;
+
+  let hh=now.getHours(), ampm=hh>=12?"PM":"AM";
+  let period="";
+  if(hh>=4 && hh<6) period="ভোর";
+  else if(hh>=6 && hh<12) period="সকাল";
+  else if(hh>=12 && hh<15) period="দুপুর";
+  else if(hh>=15 && hh<18) period="বিকেল";
+  else if(hh>=18 && hh<21) period="সন্ধ্যা";
+  else if(hh>=21 && hh<24) period="রাত";
+  else period="গভীর রাত";
+  document.getElementById("periodLabel").innerText = `এখন ${period}`;
+  hh=hh%12; if(hh===0) hh=12;
+  document.getElementById("liveClock").innerText = `${hh}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ampm}`;
+}
+
+function updateTimes(){
+  const now=new Date();
+  const district=districts[currentDistrict];
+  const namazOrder=["fajr","zuhr","asr","maghrib","isha"];
+  const namazNamesBn={"fajr":"ফজর","zuhr":"যোহর","asr":"আছর","maghrib":"মাগরিব","isha":"এশা"};
+  let currentNamaz="", nextNamaz="", nextTime=null;
+
+  for(let i=0;i<namazOrder.length;i++){
+    const n=namazOrder[i];
+    const t=getTimeParts(district[n]);
+    const timeDate=new Date(now.getFullYear(),now.getMonth(),now.getDate(),t.h,t.m,0);
+    if(now<timeDate){ nextNamaz=n; nextTime=timeDate; break; }
+    else currentNamaz=n;
+  }
+
+  document.getElementById("currentNamaz").innerText=currentNamaz?`এখন নামাজের ওয়াক্ত "${namazNamesBn[currentNamaz]}" চলমান`:`এখন আর কোন নামাজের ওয়াক্ত নেই`;
+  document.getElementById("nextNamaz").innerText=nextNamaz?`পরবর্তী নামাজের ওয়াক্ত আসবে "${namazNamesBn[nextNamaz]}"`:`পরবর্তী নামাজের ওয়াক্ত খুব শীঘ্রই চলে আসবে`;
+  document.getElementById("nextNamazCountdown").innerText=nextTime?`পরবর্তী নামাজের ওয়াক্ত আসতে বাকি সময় :- ${getCountdown(now,nextTime)}`:"";
+
+  // Sehri
+  const sehriTime=getTimeParts(district["sehri"]);
+  const sehriDate=new Date(now.getFullYear(),now.getMonth(),now.getDate(),sehriTime.h,sehriTime.m,0);
+  if(now<sehriDate){
+    document.getElementById("sehriStatus").innerText="সেহরির সময় শুরু হয়েছে";
+    document.getElementById("sehriCountdown").innerText=getCountdown(now,sehriDate);
+  }else{
+    document.getElementById("sehriStatus").innerText="এখন আর সেহরির সময় নেই";
+    document.getElementById("sehriCountdown").innerText="";
+  }
+
+  // Iftar
+  const iftarTime=getTimeParts(district["iftar"]);
+  const iftarDate=new Date(now.getFullYear(),now.getMonth(),now.getDate(),iftarTime.h,iftarTime.m,0);
+  document.getElementById("iftarTime").innerText=`আজকের ইফতার শুরু হবে সন্ধ্যাঃ ${pad(iftarTime.h%12||12)}:${pad(iftarTime.m)} ${iftarTime.h>=12?'PM':'AM'}`;
+  document.getElementById("iftarCountdown").innerText=`ইফতারের সময় শুরু হতে বাকিঃ ${getCountdown(now,iftarDate)}`;
+
+  // Sunrise / Sunset
+  const sunriseParts=district.sunrise.split(":");
+  const sunsetParts=district.sunset.split(":");
+  const sunriseDate=new Date(now.getFullYear(),now.getMonth(),now.getDate(),Number(sunriseParts[0]),Number(sunriseParts[1]),0);
+  const sunsetDate=new Date(now.getFullYear(),now.getMonth(),now.getDate(),Number(sunsetParts[0]),Number(sunsetParts[1]),0);
+  document.getElementById("sunriseTime").innerText=`${pad(sunriseDate.getHours()%12||12)}:${pad(sunriseDate.getMinutes())} ${sunriseDate.getHours()>=12?'PM':'AM'}`;
+  document.getElementById("sunsetTime").innerText=`${pad(sunsetDate.getHours()%12||12)}:${pad(sunsetDate.getMinutes())} ${sunsetDate.getHours()>=12?'PM':'AM'}`;
+}
+
+// Event listener for district change
+document.getElementById("districtSelect").addEventListener("change",()=>{
+  currentDistrict=document.getElementById("districtSelect").value; updateTimes();
+});
+
+updateHeader();
+updateTimes();
+setInterval(()=>{updateHeader(); updateTimes();},1000);
+</script>
+
+</body>
+</html>
